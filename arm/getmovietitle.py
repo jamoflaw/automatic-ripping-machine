@@ -27,31 +27,33 @@ def getdvdtitle(disc):
         Metaservices and returns the Title and year of DVD """
     logging.debug(str(disc))
 
-    crc64 = pydvdid.compute(str(disc.mountpoint))
-    # crc64 = pydvdid.compute("/mnt/dev/sr1")
-    logging.info("DVD CRC64 hash is: " + str(crc64))
-    urlstring = "http://metaservices.windowsmedia.com/pas_dvd_B/template/GetMDRDVDByCRC.xml?CRC={0}".format(str(crc64))
-    logging.debug(urlstring)
+    # Try to work out title from the disc label
+    dvd_title = disc.label.replace("_", " ").replace("16X9", "").replace("4X3", "").replace("_SE", "").replace("THX", "").replace("DTS", "").replace(" AND ", " ")
+    
+    return callwebservice(omdb_api_key, dvd_title)
 
+
+def callwebservice(omdb_api_key, dvd_title, year=""):
+    """ Queries OMDbapi.org for title information and parses if it's a movie
+        or a tv series """
+
+    logging.debug("***Calling webservice with Title: " + dvd_title + " and Year: " + year)
     try:
-        dvd_info_xml = urllib.request.urlopen(
-            "http://metaservices.windowsmedia.com/pas_dvd_B/template/GetMDRDVDByCRC.xml?CRC={0}".
-            format(crc64)).read()
-    except OSError as e:
-        logging.error("Failed to reach windowsmedia web service")
-        return[None, None]
+        strurl = "http://www.omdbapi.com/?t={1}&y={2}&plot=short&r=json&apikey={0}".format(omdb_api_key, dvd_title, year)
+        logging.debug("http://www.omdbapi.com/?t={1}&y={2}&plot=short&r=json&apikey={0}".format("key_hidden", dvd_title, year))
+        dvd_title_info_json = urllib.request.urlopen(strurl).read()
+    except Exception:
+        logging.debug("Webservice failed")
+        return "fail"
+    else:
+        doc = json.loads(dvd_title_info_json.decode())
+        if doc['Response'] == "False":
+            logging.debug("Webservice failed with error: " + doc['Error'])
+            return "fail"
+        else:
+            logging.debug("Webservice successful. DVD Title {} and year is {}".format(doc['Title'], doc['Year']))
 
-    try:
-        doc = xmltodict.parse(dvd_info_xml)
-        dvd_title = doc['METADATA']['MDR-DVD']['dvdTitle']
-        dvd_release_date = doc['METADATA']['MDR-DVD']['releaseDate']
-        dvd_title = dvd_title.strip()
-        dvd_release_date = dvd_release_date.split()[0]
-    except KeyError:
-        logging.error("Windows Media request returned no result.  Likely the DVD is not in their database.")
-        return[None, None]
-
-    return[dvd_title, dvd_release_date]
+            return doc['Title'], doc['Year']
 
 
 def getbluraytitle(disc):
