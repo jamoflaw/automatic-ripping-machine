@@ -11,3 +11,4 @@ pyyaml>=3.12
 flake8>=2.5.0
 robobrowser>=0.5.3
 tinydownload>=0.1.0
+werkzeug==0.16.1
