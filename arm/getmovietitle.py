@@ -2,6 +2,7 @@
 
 import argparse
 import urllib
+import json
 import os
 import datetime
 import pydvdid
@@ -13,6 +14,7 @@ import logging
 import logger # noqa # pylint: disable=unused-import
 import classes # noqa # pylint: disable=unused-import
 
+from config import cfg
 
 def entry():
     """ Entry to program, parses arguments"""
@@ -29,7 +31,9 @@ def getdvdtitle(disc):
 
     # Try to work out title from the disc label
     dvd_title = disc.label.replace("_", " ").replace("16X9", "").replace("4X3", "").replace("_SE", "").replace("THX", "").replace("DTS", "").replace(" AND ", " ")
-    
+    logging.debug("Will search for {}".format(dvd_title))
+ 
+    omdb_api_key = cfg['OMDB_API_KEY']
     return callwebservice(omdb_api_key, dvd_title)
 
 
@@ -39,17 +43,17 @@ def callwebservice(omdb_api_key, dvd_title, year=""):
 
     logging.debug("***Calling webservice with Title: " + dvd_title + " and Year: " + year)
     try:
-        strurl = "http://www.omdbapi.com/?t={1}&y={2}&plot=short&r=json&apikey={0}".format(omdb_api_key, dvd_title, year)
-        logging.debug("http://www.omdbapi.com/?t={1}&y={2}&plot=short&r=json&apikey={0}".format("key_hidden", dvd_title, year))
+        strurl = "http://www.omdbapi.com/?t={1}&y={2}&plot=short&r=json&apikey={0}".format(omdb_api_key, urllib.parse.quote_plus(dvd_title), year)
+        logging.debug("http://www.omdbapi.com/?t={1}&y={2}&plot=short&r=json&apikey={0}".format("key_hidden", urllib.parse.quote_plus(dvd_title), year))
         dvd_title_info_json = urllib.request.urlopen(strurl).read()
     except Exception:
-        logging.debug("Webservice failed")
-        return "fail"
+        logging.exception("Webservice failed")
+        return dvd_title, "0000"
     else:
         doc = json.loads(dvd_title_info_json.decode())
         if doc['Response'] == "False":
             logging.debug("Webservice failed with error: " + doc['Error'])
-            return "fail"
+            return dvd_title, "0000"
         else:
             logging.debug("Webservice successful. DVD Title {} and year is {}".format(doc['Title'], doc['Year']))
 
@@ -90,6 +94,7 @@ def clean_for_filename(string):
     string = re.sub('\s+', ' ', string)
     string = string.replace(' : ', ' - ')
     string = string.replace(': ', ' - ')
+    string = string.replace(' & ', ' and ')
     string = string.strip()
     return re.sub('[^\w\-_\.\(\) ]', '', string)
 
